@@ -1,5 +1,8 @@
 package com.galvan.security.auth;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,7 +33,12 @@ public class AuthenticationService {
                 .role(Role.USER)
                 .build();
         repository.save(user);
-        var jwtToken = jwtService.generateToken(user);
+
+        // Adjuntar el rol del usuario en el token
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("role", user.getRole().name());
+
+        var jwtToken = jwtService.generateToken(extraClaims, user);
         return AuthenticationResponse.builder()
                 .token(jwtToken)
                 .build();
@@ -50,7 +58,11 @@ public class AuthenticationService {
         var user = repository.findByEmail(request.getEmail())
                 .orElseThrow();
 
-        var jwtToken = jwtService.generateToken(user);
+        // Adjuntar el rol del usuario en el token
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("role", user.getRole().name());
+
+        var jwtToken = jwtService.generateToken(extraClaims, user);
         return AuthenticationResponse.builder()
                 .token(jwtToken)
                 .build();
