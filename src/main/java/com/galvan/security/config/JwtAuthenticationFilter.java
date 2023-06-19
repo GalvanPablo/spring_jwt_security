@@ -3,7 +3,10 @@ package com.galvan.security.config;
 import java.io.IOException;
 
 import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -30,18 +33,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         @NonNull HttpServletResponse response,
         @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        // Descomentar para permitir el acceso a la ruta de autenticación sin necesidad de un token de forma mas directa
-        // if (request.getServletPath().contains("/api/v1/auth")) {
-        //     filterChain.doFilter(request, response);
-        //     return;
-        // }
-        
+
         // El Jwt Token se envía en el header de la petición
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String userEmail;
 
-        if(authHeader == null || !authHeader.startsWith("Bearer ")) { // Bearer es un tipo de token que se usa para autenticar a un usuario
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) { // Bearer es un tipo de token que se usa para
+                                                                       // autenticar a un usuario
             // Si el header no existe o no empieza con Bearer
             filterChain.doFilter(request, response);
             return;
@@ -51,22 +50,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         jwt = authHeader.substring(7);
         userEmail = jwtService.extractUsername(jwt); // Es indiferente que se obtenga el email o el username, ya que en este caso son lo mismo (simplemnte se usa el email como username)
 
-        if(userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null){
+        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail); // Se obtienen los datos del usuario desde la base de datos
-            if(jwtService.isTokenValid(jwt, userDetails)){  // Se verifica que el token sea válido
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    userDetails,
-                    null,
-                    userDetails.getAuthorities()
-                );
-                authToken.setDetails(
-                    new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            if (jwtService.isTokenValid(jwt, userDetails)) { // Se verifica que el token sea válido
+                String userRole = jwtService.extractUserRole(jwt); // Método para extraer el rol del token JWT
+                if(userRole != null){
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    SecurityContext context = SecurityContextHolder.createEmptyContext();
+
+                    userRole = "ROLE_" + userRole.toUpperCase();
+                    Authentication authentication = new TestingAuthenticationToken(userDetails.getUsername(), userDetails.getPassword(), userRole);
+                    context.setAuthentication(authentication);
+
+                    SecurityContextHolder.setContext(context);
+                }
             }
         }
 
         filterChain.doFilter(request, response);
     }
-    
+
 }
